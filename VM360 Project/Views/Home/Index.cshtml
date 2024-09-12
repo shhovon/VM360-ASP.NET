@@ -1,0 +1,217 @@
+﻿@model IEnumerable<VM360_Project.Models.ClothingItem>
+
+@{
+    ViewBag.Title = "3D Model Viewer";
+}
+
+<h2>3D Mannequin Model Viewer</h2>
+
+<div id="3d-model-container" style="width: 100%; height: 500px;"></div>
+
+<div style="margin-top: 20px;">
+    <h3>Upload Clothing</h3>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <input type="text" id="name" name="name" required>
+        <select id="type" name="type" required>
+            <option value="Upper">Upper</option>
+            <option value="Lower">Lower</option>
+        </select>
+        <input type="file" id="file" name="file" required>
+        <button type="submit">Upload</button>
+    </form>
+
+    <select id="clothingSelect">
+        <option value="">Select Clothing</option>
+    </select>
+</div>
+
+<h3>Available Clothing</h3>
+<select id="clothingSelect">
+    <option value="">Select Clothing</option>
+    @foreach (var item in Model)
+    {
+        <option value="@Url.Content(item.ImagePath)" data-type="@item.Type">@item.Name (@item.Type)</option>
+    }
+</select>
+
+@section scripts {
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="~/Scripts/custom/humanModelViewer.js"></script>
+
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
+        import { OrbitControls } from 'https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js';
+
+        let scene, camera, renderer, controls, human;
+
+        function createRealisticHuman() {
+            const group = new THREE.Group();
+
+            // Head
+            const headGeometry = new THREE.SphereGeometry(0.15, 32, 32);
+            const headMaterial = new THREE.MeshPhongMaterial({ color: 0xF5D0B0 });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.y = 1.6;
+            head.name = 'head';
+            group.add(head);
+
+            // Eyes
+            const eyeGeometry = new THREE.SphereGeometry(0.02, 16, 16);
+            const eyeMaterial = new THREE.MeshPhongMaterial({ color: 0xFFFFFF });
+            const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            leftEye.position.set(-0.05, 1.63, 0.12);
+            group.add(leftEye);
+            const rightEye = leftEye.clone();
+            rightEye.position.x = 0.05;
+            group.add(rightEye);
+
+            // Pupil
+            const pupilGeometry = new THREE.SphereGeometry(0.01, 8, 8);
+            const pupilMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
+            const leftPupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
+            leftPupil.position.set(-0.05, 1.63, 0.135);
+            group.add(leftPupil);
+            const rightPupil = leftPupil.clone();
+            rightPupil.position.x = 0.05;
+            group.add(rightPupil);
+
+            // Nose
+            const noseGeometry = new THREE.ConeGeometry(0.02, 0.05, 8);
+            const noseMaterial = new THREE.MeshPhongMaterial({ color: 0xF5D0B0 });
+            const nose = new THREE.Mesh(noseGeometry, noseMaterial);
+            nose.position.set(0, 1.58, 0.14);
+            nose.rotation.x = -Math.PI / 2;
+            group.add(nose);
+
+            // Mouth
+            const mouthGeometry = new THREE.BoxGeometry(0.08, 0.02, 0.01);
+            const mouthMaterial = new THREE.MeshPhongMaterial({ color: 0xCC6666 });
+            const mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
+            mouth.position.set(0, 1.52, 0.14);
+            group.add(mouth);
+
+            // Neck
+            const neckGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.15, 32);
+            const neckMaterial = new THREE.MeshPhongMaterial({ color: 0xF5D0B0 });
+            const neck = new THREE.Mesh(neckGeometry, neckMaterial);
+            neck.position.y = 1.5;
+            group.add(neck);
+
+            // Torso with a defined stomach
+            const torsoGeometry = new THREE.BoxGeometry(0.4, 0.6, 0.2);
+            const torsoMaterial = new THREE.MeshPhongMaterial({ color: 0xF5D0B0 });
+            const torso = new THREE.Mesh(torsoGeometry, torsoMaterial);
+            torso.position.y = 1.1;
+            torso.name = 'torso';
+            group.add(torso);
+
+            // Arms with detailed hands and fingers
+            const armGeometry = new THREE.CylinderGeometry(0.06, 0.06, 0.6, 32);
+            const armMaterial = new THREE.MeshPhongMaterial({ color: 0xF5D0B0 });
+
+            function createArm(side) {
+                const arm = new THREE.Mesh(armGeometry, armMaterial);
+                arm.position.y = 1.25;
+                arm.position.x = side === 'left' ? -0.3 : 0.3;
+                arm.rotation.z = side === 'left' ? Math.PI / 18 : -Math.PI / 18;
+
+                const handGeometry = new THREE.BoxGeometry(0.1, 0.15, 0.05);
+                const hand = new THREE.Mesh(handGeometry, armMaterial);
+                hand.position.y = -0.35;
+                arm.add(hand);
+
+                // Fingers
+                const fingerGeometry = new THREE.CylinderGeometry(0.015, 0.015, 0.1, 8);
+                for (let i = 0; i < 5; i++) {
+                    const finger = new THREE.Mesh(fingerGeometry, armMaterial);
+                    finger.position.y = -0.07;
+                    finger.position.x = (i - 2) * 0.03;
+                    finger.rotation.x = Math.PI / 4;
+                    hand.add(finger);
+                }
+
+                return arm;
+            }
+
+            group.add(createArm('left'), createArm('right'));
+
+            // Legs with detailed feet
+            const legGeometry = new THREE.CylinderGeometry(0.08, 0.1, 0.7, 32);
+            const legMaterial = new THREE.MeshPhongMaterial({ color: 0xF5D0B0 });
+
+            function createLeg(side) {
+                const leg = new THREE.Mesh(legGeometry, legMaterial);
+                leg.position.y = 0.35;
+                leg.position.x = side === 'left' ? -0.15 : 0.15;
+
+                const footGeometry = new THREE.BoxGeometry(0.1, 0.05, 0.2);
+                const foot = new THREE.Mesh(footGeometry, legMaterial);
+                foot.position.y = -0.375;
+                foot.position.z = 0.1;
+                leg.add(foot);
+
+                return leg;
+            }
+
+            group.add(createLeg('left'), createLeg('right'));
+
+            return group;
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('3d-model-container').appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(0, 1, 1);
+            scene.add(directionalLight);
+
+            human = createRealisticHuman();
+            scene.add(human);
+
+            camera.position.set(0, 1.5, 2.5);
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.target.set(0, 1, 0);
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function applyClothing(textureUrl, type) {
+            new THREE.TextureLoader().load(textureUrl, (texture) => {
+                const targetMesh = human.getObjectByName(type === 'Upper' ? 'torso' : 'lowerBody');
+                targetMesh.material.map = texture;
+                targetMesh.material.needsUpdate = true;
+            });
+        }
+
+        document.getElementById('clothingSelect').addEventListener('change', function () {
+            const selectedOption = this.options[this.selectedIndex];
+            const imageUrl = selectedOption.value;
+            const type = selectedOption.getAttribute('data-type');
+            if (imageUrl) {
+                applyClothing(imageUrl, type);
+            }
+        });
+
+        init();
+    </script>
+}
